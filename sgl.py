@@ -25,7 +25,7 @@ class LearnGraphTopolgy:
         self.bic = 0
 
     def learn_k_component_graph(self, k=1, rho=1e-2, beta=1e4, fix_beta=True, beta_max = 1e6,
-    lb=0, ub=1e4, eigtol = 1e-9, eps = 1e-4): 
+    lb=0, ub=1e10, eigtol = 1e-9, eps = 1e-4): 
         # number of nodes
         n = self.S.shape[0]
         # find an appropriate inital guess
@@ -44,10 +44,10 @@ class LearnGraphTopolgy:
         lamda0 = self.optimizer.lamda_update(lb = lb, ub = ub, beta = beta, U = U0, Lw = Lw0, k = k)
         # save objective function value at initial guess
         if self.record_objective:
-            ll0 = self.obj.negloglikelihood(Lw = Lw0, lamda = lamda0, K = K)
-            fun0 = ll0 + self.obj.prior(beta = beta, Lw = Lw0, lamda = lamda0, U = U0)
+            nll0 = self.obj.negloglikelihood(Lw = Lw0, lamda = lamda0, K = K)
+            fun0 = nll0 + self.obj.prior(beta = beta, Lw = Lw0, lamda = lamda0, U = U0)
             fun_seq = [fun0]
-            ll_seq = [ll0]
+            nll_seq = [nll0]
 
         beta_seq = [beta]
         if self.record_weights:
@@ -63,9 +63,9 @@ class LearnGraphTopolgy:
             
             # compute negloglikelihood and objective function values
             if self.record_objective:
-                ll = self.obj.negloglikelihood(Lw = Lw, lamda = lamda, K = K)
-                fun = ll + self.obj.prior(beta = beta, Lw = Lw, lamda = lamda, U = U)
-                ll_seq.append(ll)
+                nll = self.obj.negloglikelihood(Lw = Lw, lamda = lamda, K = K)
+                fun = nll + self.obj.prior(beta = beta, Lw = Lw, lamda = lamda, U = U)
+                nll_seq.append(nll)
                 fun_seq.append(fun)
             if self.record_weights:
                 w_seq.append(w)
@@ -103,10 +103,19 @@ class LearnGraphTopolgy:
         'elapsed_time' : time_seq, 'convergence' : has_w_converged, 'beta_seq' : beta_seq }
         if self.record_objective:
             results['obj_fun'] = fun_seq
-            results['negloglike'] = ll_seq
+            results['negloglike'] = nll_seq
             results['bic'] = 0
 
         if self.record_weights:
             results['w_seq'] = w_seq
 
         return results
+    
+    def learn_bipartite_graph(self, z = 0, nu = 1e4, m=7):
+        # number of nodes
+        n = self.S.shape[0]
+        # find an appropriate inital guess
+        if self.is_data_matrix:
+            raise Exception('Not implemented yet!')
+        else:
+            Sinv = np.linalg.pinv(self.S)

@@ -50,11 +50,30 @@ class Metrics:
         return (self.fp / (self.fp + self.tp))
 
 class ModelSelection:
+    def gdet(self, L):
+        eps = 1e-4
+        vals = np.linalg.eigvals(L)
+        nz_eigvals = vals[vals > eps]
+        return np.prod(nz_eigvals)
+
     def bic(self, ll, n, k):
         """Bayesian information criterion
 
         """
         return -2 * ll + k * np.log(n)
+
+    def ebic(self, L, S, dof, n, p):
+        """Extended Bayesian information criterion
+        eBIC(Θ^k) = log gdet(Θ^k) − Tr(SΘ^k) − dk log n − 4γdk log p
+        """
+        # if n/p > 1000:
+        gamma = 0
+
+        print(2*np.log(self.gdet(L)) - np.trace(S*L), - dof * np.log(n))
+        temp = L - np.diag(np.diag(L)) 
+        temp = -1*temp
+        print('eBIC mod score: ', 2*np.log(self.gdet(L)) - np.trace(S*L) - np.sum(temp[temp>0])/2 * np.log(n) )
+        return  2*np.log(self.gdet(L)) - np.trace(S*L) - dof * np.log(n) - 4*gamma*dof*np.log(p)
 
     def aic(self, ll, n, k):
         """Akaike information criterion

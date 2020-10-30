@@ -9,6 +9,4 @@ class Objectives:
         return(np.sum(-np.log(lamda)) + np.trace(np.dot(K, Lw)))
 
     def prior(self, beta, Lw, lamda, U):
-        temp = np.zeros((lamda.shape[0],lamda.shape[0]))
-        np.fill_diagonal(temp, lamda)
-        return 0.5 * beta * np.linalg.norm(Lw - np.matmul(np.matmul(U,temp),U.T))**2
+        return 0.5 * beta * np.linalg.norm(Lw - np.matmul(np.matmul(U,np.diag(lamda)),U.T))**2
