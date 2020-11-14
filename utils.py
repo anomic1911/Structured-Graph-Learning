@@ -48,21 +48,6 @@ class Operators:
                 l = l+1
         return w
 
-    def Lstar(self, M):
-        N = M.shape[0]
-        k = int( 0.5*N*(N-1))
-        w = np.zeros(k)
-        j=0
-        l=1
-        for i in range(0,k):
-            w[i] = M[j][j] + M[l][l] -(M[l][j] + M[j][l])
-            if l==(N-1):
-                j = j+1
-                l = j+1
-            else:
-                l = l+1
-        return w
-
     def A(self, w):
         '''Computes the Adjacency linear operator which maps a vector of weights into a valid Adjacency matrix.
         
@@ -88,3 +73,34 @@ class Operators:
                 k = k + 1 
         Aw = Aw + Aw.T
         return Aw
+    
+    def Lstar(self, M):
+        N = M.shape[1]
+        k = int( 0.5*N*(N-1))
+        w = np.zeros(k)
+        j=0
+        l=1
+        for i in range(0,k):
+            w[i] = M[j][j] + M[l][l] -(M[l][j] + M[j][l])
+            if l==(N-1):
+                j = j+1
+                l = j+1
+            else:
+                l = l+1
+        return w
+
+    def Astar(self, M):
+        N = M.shape[1]
+        k = int( 0.5*N*(N-1))
+        w = np.zeros(k)
+        j=0
+        l=1
+
+        for i in range(0,k):
+            w[i] = M[l][j] + M[j][l]
+            if l==(N-1):
+                j = j+1
+                l = j+1
+            else:
+                l = l+1
+        return w

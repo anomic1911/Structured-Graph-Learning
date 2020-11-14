@@ -17,9 +17,7 @@ class Optimizer:
         return w0
 
     def w_update(self, w, Lw, U, beta, lamda, K):
-        temp = np.zeros((lamda.shape[0],lamda.shape[0]))
-        np.fill_diagonal(temp, lamda)
-        c = self.op.Lstar(np.matmul(np.matmul(U , temp), U.T)  - K / beta)
+        c = self.op.Lstar(np.matmul(np.matmul(U , np.diag(lamda)), U.T)  - K / beta)
         grad_f = self.op.Lstar(Lw) - c
         M_grad_f = self.op.Lstar(self.op.L(grad_f))
         wT_M_grad_f = sum(w * M_grad_f)
@@ -28,12 +26,38 @@ class Optimizer:
         t = (wT_M_grad_f - sum(c * grad_f)) / dwT_M_dw
         w_update = w - t * grad_f
         w_update[w_update < 0] = 0
-        return(w_update)
+        return w_update
+
+    def bipartite_w_update(self, w, Aw, V, nu, psi, K, J, Lips):
+        grad_h = 2 * w - self.op.Astar(V @ np.diag(psi) @ V.T) #+ Lstar(K) / beta
+        w_update = w - (self.op.Lstar(np.linalg.inv(self.op.L(w) + J) + K) + nu * grad_h) / (2 * nu + Lips)
+        w_update[w_update < 0] = 0
+        return w_update
+
 
     def U_update(self, Lw, k):
         _, eigvec = np.linalg.eigh(Lw)
         p = Lw.shape[1]
         return eigvec[:, k:p]
+    
+    def V_update(self, Aw, z):
+        p = Aw.shape[1]
+        _, V = np.linalg.eigh(Aw)
+        return np.hstack((V[:, 0:int(.5*(p - z))], V[:, int(.5*(p + z)):p])) 
+
+    def psi_update(self, V, Aw, lb = float('-inf'), ub = float('inf')):
+        c = np.diag(V.T @ Aw @ V)
+        n = c.shape[0]
+        temp = c[int(n/2):n]
+        temp = temp[::-1]
+        c_tilde = .5 * (temp - c[0:int(n/2)])
+        from sklearn.isotonic import IsotonicRegression
+        iso_reg = IsotonicRegression().fit(list(range(1, c_tilde.shape[0]+1)) , c_tilde)
+        x = iso_reg.predict(list(range(1, c_tilde.shape[0]+1)))
+        x = np.concatenate((-x[::-1], x))
+        x[x < lb] = lb
+        x[x > ub] = ub
+        return x
 
     def lamda_update(self, lb, ub, beta, U, Lw, k):
         q = Lw.shape[1] - k

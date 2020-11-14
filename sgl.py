@@ -8,24 +8,23 @@ from objectives import Objectives
 # import cvxopt
 
 class LearnGraphTopolgy:
-    def __init__(self, S, is_data_matrix=False, alpha=0, w0='naive', maxiter=10000, abstol = 1e-6, reltol = 1e-4,
+    def __init__(self, S, is_data_matrix=False, alpha=0, maxiter=10000, abstol = 1e-6, reltol = 1e-4,
     record_objective = False, record_weights = False):
         self.S = S
         self.is_data_matrix = is_data_matrix
         self.alpha = alpha
-        self.w0 = w0
         self.maxiter = maxiter
         self.abstol = abstol
         self.reltol = reltol
         self.record_objective = record_objective
         self.record_weights = record_weights
         self.op = Operators()
-        self.optimizer = Optimizer()
         self.obj = Objectives()
+        self.optimizer = Optimizer()
         self.bic = 0
 
-    def learn_k_component_graph(self, k=1, rho=1e-2, beta=1e4, fix_beta=True, beta_max = 1e6,
-    lb=0, ub=1e10, eigtol = 1e-9, eps = 1e-4): 
+    def learn_k_component_graph(self, k=1, rho=1e-2, beta=1e4, w0='naive', fix_beta=True, beta_max = 1e6,
+    lb=0, ub=1e10, eigtol = 1e-9, eps = 1e-4):
         # number of nodes
         n = self.S.shape[0]
         # find an appropriate inital guess
@@ -34,7 +33,7 @@ class LearnGraphTopolgy:
         else:
             Sinv = np.linalg.pinv(self.S)
         # if w0 is either "naive" or "qp", compute it, else return w0
-        w0 = self.optimizer.w_init(self.w0, Sinv)
+        w0 = self.optimizer.w_init(w0, Sinv)
         # compute quantities on the initial guess
         Lw0 = self.op.L(w0)
         # l1-norm penalty factor
@@ -103,15 +102,14 @@ class LearnGraphTopolgy:
         'elapsed_time' : time_seq, 'convergence' : has_w_converged, 'beta_seq' : beta_seq }
         if self.record_objective:
             results['obj_fun'] = fun_seq
-            results['negloglike'] = nll_seq
+            results['nll'] = nll_seq
             results['bic'] = 0
 
         if self.record_weights:
             results['w_seq'] = w_seq
-
         return results
     
-    def learn_bipartite_graph(self, z = 0, nu = 1e4, m=7):
+    def learn_bipartite_graph(self, z = 0, nu = 1e4, m=7, w0='naive'):
         # number of nodes
         n = self.S.shape[0]
         # find an appropriate inital guess
@@ -119,3 +117,93 @@ class LearnGraphTopolgy:
             raise Exception('Not implemented yet!')
         else:
             Sinv = np.linalg.pinv(self.S)
+        # note now that S is always some sort of similarity matrix
+        J = np.ones((n, n))*(1/n)
+        # l1-norm penalty factor
+        H = self.alpha * (np.zeros((n,n)) - np.ones((n, n)))
+        K = self.S + H
+        # if w0 is either "naive" or "qp", compute it, else return w0
+        w0 = self.optimizer.w_init(w0, Sinv)
+        Lips = 1 / min(np.linalg.eigvals(self.op.L(w0) + J)) 
+        # compute quantities on the initial guess
+        Aw0 = self.op.A(w0)
+        V0 = self.optimizer.V_update(Aw0, z)
+        psi0 = self.optimizer.psi_update(V0, Aw0)
+        Lips_seq = [Lips]
+        time_seq = [0]
+        start_time = time.time()
+        ll0 = self.obj.bipartite_nll(Lw = self.op.L(w0), K = K, J = J)
+        fun0 = ll0 + self.obj.bipartite_prior(nu = nu, Aw = Aw0, psi = psi0, V = V0)
+        fun_seq = [fun0]
+        nll_seq = [ll0]
+        if self.record_weights:
+            w_seq = [w0]
+        for _ in tqdm(range(self.maxiter)):
+            # we need to make sure that the Lipschitz constant is large enough
+            # in order to avoid divergence
+            while(1):
+                # compute the update for w
+                w = self.optimizer.bipartite_w_update(w = w0, Aw = Aw0, V = V0, nu = nu, psi = psi0,
+                K = K, J = J, Lips = Lips)
+                # compute the objective function at the updated value of w
+                fun_t = self.obj.bipartite_obj(Aw = self.op.A(w), Lw = self.op.L(w), V = V0, psi = psi0,
+                K = K, J = J, nu = nu)
+                # check if the previous value of the objective function is
+                # smaller than the current one
+                Lips_seq.append(Lips)
+                if fun0 < fun_t:
+                    # in case it is in fact larger, then increase Lips and recompute w
+                    Lips = 2 * Lips
+                else:
+                    # otherwise decrease Lips and get outta here!
+                    Lips = .5 * Lips
+                    if Lips < 1e-12:
+                        Lips = 1e-12
+                    break
+            Lw = self.op.L(w)
+            Aw = self.op.A(w)
+            V = self.optimizer.V_update(Aw = Aw, z = z)
+            psi = self.optimizer.psi_update(V = V, Aw = Aw)
+            # compute negloglikelihood and objective function values
+            ll = self.obj.bipartite_nll(Lw = Lw, K = K, J = J)
+            fun = ll + self.obj.bipartite_prior(nu = nu, Aw = Aw, psi = psi, V = V)
+            # save measurements of time and objective functions
+            time_seq.append(time.time() - start_time)
+            nll_seq.append(ll)
+            fun_seq.append(fun)
+            # compute the relative error and check the tolerance on the Adjacency
+            # matrix and on the objective function
+            if self.record_weights:
+                w_seq.append(w)
+             # check for convergence
+            werr = np.abs(w0 - w)
+            has_w_converged = all(werr <= .5 * self.reltol * (w + w0)) or all(werr <= self.abstol)
+            
+            if has_w_converged:
+                break
+            # update estimates
+            fun0 = fun
+            w0 = w
+            V0 = V
+            psi0 = psi
+            Aw0 = Aw
+
+        results = {'laplacian' : Lw, 'adjacency' : Aw, 'w' : w, 'psi' : psi, 'V' : V,
+        'elapsed_time' : time_seq, 'Lips_seq' : Lips_seq, 'convergence' : has_w_converged, 'nu' : nu }
+        
+        if self.record_objective:
+            results['obj_fun'] = fun_seq
+            results['nll'] = nll_seq
+            results['bic'] = 0
+
+        if self.record_weights:
+            results['w_seq'] = w_seq
+
+        return results
+       
+    # def learn_bipartite_k_component_graph <- function(S, is_data_matrix = FALSE, z = 0, k = 1,
+    #                                           w0 = "naive", m = 7, alpha = 0., beta = 1e4,
+    #                                           rho = 1e-2, fix_beta = TRUE, beta_max = 1e6, nu = 1e4,
+    #                                           lb = 0, ub = 1e4, maxiter = 1e4, abstol = 1e-6,
+    #                                           reltol = 1e-4, eigtol = 1e-9,
+    #                                           record_weights = FALSE, record_objective = FALSE, verbose = TRUE)

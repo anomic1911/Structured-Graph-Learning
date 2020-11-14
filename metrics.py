@@ -56,33 +56,36 @@ class ModelSelection:
         nz_eigvals = vals[vals > eps]
         return np.prod(nz_eigvals)
 
-    def bic(self, ll, n, k):
+    def bic(self, L, S, n, p):
         """Bayesian information criterion
-
+        eBIC(\theta) = log gdet(\theta) − Tr(S\theta) − |E|log n
         """
-        return -2 * ll + k * np.log(n)
+        temp = -1*(L - np.diag(np.diag(L))) 
+        num_edges = np.sum(temp[temp>0])/2
+        return 2*np.log(self.gdet(L)) - np.trace(S*L) - num_edges * np.log(n)
 
-    def ebic(self, L, S, dof, n, p):
+    def ebic(self, L, S, n, p):
         """Extended Bayesian information criterion
-        eBIC(Θ^k) = log gdet(Θ^k) − Tr(SΘ^k) − dk log n − 4γdk log p
+        eBIC(\theta) = log gdet(\theta) − Tr(S\theta) − |E|log n − 4γ|E|log p
         """
-        # if n/p > 1000:
-        gamma = 0
+        # if n/p > 500:
+        #     gamma = 0
+        # elif n/p > 100:
+        #     gamma = 0.5
+        # else:
+        gamma = 0.5
+        temp = -1*(L - np.diag(np.diag(L))) 
+        num_edges = np.sum(temp[temp>0])/2
+        return 2*np.log(self.gdet(L)) - np.trace(S*L) - num_edges * np.log(n) - 4*gamma*num_edges*np.log(p)
 
-        print(2*np.log(self.gdet(L)) - np.trace(S*L), - dof * np.log(n))
-        temp = L - np.diag(np.diag(L)) 
-        temp = -1*temp
-        print('eBIC mod score: ', 2*np.log(self.gdet(L)) - np.trace(S*L) - np.sum(temp[temp>0])/2 * np.log(n) )
-        return  2*np.log(self.gdet(L)) - np.trace(S*L) - dof * np.log(n) - 4*gamma*dof*np.log(p)
+    # def aic(self, L, S, n, p):
+    #     """Akaike information criterion
+    #     eBIC(\theta) = log gdet(\theta) − Tr(S\theta) − |E|log n − 4γ|E|log p
+    #     """
+    #     return -2 * ll + 2 * k
 
-    def aic(self, ll, n, k):
-        """Akaike information criterion
+    # def aicc(self, ll, n, k):
+    #     """Akaike information criterion corrected
 
-        """
-        return -2 * ll + 2 * k
-
-    def aicc(self, ll, n, k):
-        """Akaike information criterion corrected
-
-        """
-        return self.aic(ll,n, k) + 2*k*(k+1)/(n-k-1)
+    #     """
+    #     return self.aic(ll,n, k) + 2*k*(k+1)/(n-k-1)
