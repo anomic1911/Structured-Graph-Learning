@@ -5,7 +5,6 @@ from utils import Operators
 from optimizer import Optimizer
 from tqdm import tqdm
 from objectives import Objectives
-# import cvxopt
 
 class LearnGraphTopolgy:
     def __init__(self, S, is_data_matrix=False, alpha=0, maxiter=10000, abstol = 1e-6, reltol = 1e-4,
@@ -28,7 +27,7 @@ class LearnGraphTopolgy:
         # number of nodes
         n = self.S.shape[0]
         # find an appropriate inital guess
-        if self.is_data_matrix:
+        if self.is_data_matrix or self.S.shape[0] != self.S.shape[1]:
             raise Exception('Not implemented yet!')
         else:
             Sinv = np.linalg.pinv(self.S)
@@ -37,7 +36,7 @@ class LearnGraphTopolgy:
         # compute quantities on the initial guess
         Lw0 = self.op.L(w0)
         # l1-norm penalty factor
-        H = self.alpha * (np.zeros((n,n)) - np.ones((n, n)))
+        H = self.alpha * (np.eye(n) - np.ones((n, n)))
         K = self.S + H
         U0 = self.optimizer.U_update(Lw = Lw0, k = k)
         lamda0 = self.optimizer.lamda_update(lb = lb, ub = ub, beta = beta, U = U0, Lw = Lw0, k = k)
@@ -113,14 +112,14 @@ class LearnGraphTopolgy:
         # number of nodes
         n = self.S.shape[0]
         # find an appropriate inital guess
-        if self.is_data_matrix:
+        if self.is_data_matrix or self.S.shape[0] != self.S.shape[1]:
             raise Exception('Not implemented yet!')
         else:
             Sinv = np.linalg.pinv(self.S)
         # note now that S is always some sort of similarity matrix
         J = np.ones((n, n))*(1/n)
         # l1-norm penalty factor
-        H = self.alpha * (np.zeros((n,n)) - np.ones((n, n)))
+        H = self.alpha * (2*np.eye(n) - np.ones((n, n)))
         K = self.S + H
         # if w0 is either "naive" or "qp", compute it, else return w0
         w0 = self.optimizer.w_init(w0, Sinv)

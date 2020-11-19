@@ -60,8 +60,8 @@ class ModelSelection:
         """Bayesian information criterion
         eBIC(\theta) = log gdet(\theta) − Tr(S\theta) − |E|log n
         """
-        temp = -1*(L - np.diag(np.diag(L))) 
-        num_edges = np.sum(temp[temp>0])/2
+        A = np.diag(np.diag(L)) - L 
+        num_edges = np.sum(A[A>0])/2
         return 2*np.log(self.gdet(L)) - np.trace(S*L) - num_edges * np.log(n)
 
     def ebic(self, L, S, n, p):
@@ -73,10 +73,12 @@ class ModelSelection:
         # elif n/p > 100:
         #     gamma = 0.5
         # else:
-        gamma = 0.5
-        temp = -1*(L - np.diag(np.diag(L))) 
-        num_edges = np.sum(temp[temp>0])/2
-        return 2*np.log(self.gdet(L)) - np.trace(S*L) - num_edges * np.log(n) - 4*gamma*num_edges*np.log(p)
+        gamma = 0
+        A = np.diag(np.diag(L)) - L 
+        num_edges = np.sum(A[A>0])/2
+        ll = np.log(self.gdet(L)) - np.trace(S @ L)
+        print(2*ll, num_edges * np.log(n), num_edges)
+        return 2*ll - num_edges * np.log(n) - 4*gamma*num_edges*np.log(p)
 
     # def aic(self, L, S, n, p):
     #     """Akaike information criterion

@@ -2,22 +2,30 @@ import numpy as np
 import math
 import time
 from utils import Operators
+from quadprog import solve_qp
 
 class Optimizer:
     def __init__(self):
         self.op = Operators()
+        self.eps = 1e-6
 
     def w_init(self, w0, Sinv):
         if w0.isalpha():
             if w0 == 'qp':
-                raise Exception('Not implemented yet!')
+                R = self.op.vecLmat(Sinv.shape[1])
+                G = R.T @ R
+                a = R.T @ Sinv.flatten()
+                C = np.eye(R.shape[1])
+                b = np.zeros(R.shape[1])
+                xf, _, _, _, _, _ = solve_qp(G, a, C, b)
+                w0 = xf
             elif w0 == 'naive':
                 w0 = self.op.Linv(Sinv)
                 w0[w0<0] = 0
         return w0
 
     def w_update(self, w, Lw, U, beta, lamda, K):
-        c = self.op.Lstar(np.matmul(np.matmul(U , np.diag(lamda)), U.T)  - K / beta)
+        c = self.op.Lstar(U @ np.diag(lamda) @ U.T - K / beta)
         grad_f = self.op.Lstar(Lw) - c
         M_grad_f = self.op.Lstar(self.op.L(grad_f))
         wT_M_grad_f = sum(w * M_grad_f)
@@ -34,7 +42,6 @@ class Optimizer:
         w_update[w_update < 0] = 0
         return w_update
 
-
     def U_update(self, Lw, k):
         _, eigvec = np.linalg.eigh(Lw)
         p = Lw.shape[1]
@@ -47,13 +54,15 @@ class Optimizer:
 
     def psi_update(self, V, Aw, lb = float('-inf'), ub = float('inf')):
         c = np.diag(V.T @ Aw @ V)
-        n = c.shape[0]
+        n = len(c)
         temp = c[int(n/2):n]
         temp = temp[::-1]
         c_tilde = .5 * (temp - c[0:int(n/2)])
         from sklearn.isotonic import IsotonicRegression
-        iso_reg = IsotonicRegression().fit(list(range(1, c_tilde.shape[0]+1)) , c_tilde)
-        x = iso_reg.predict(list(range(1, c_tilde.shape[0]+1)))
+        indices = list(range(1, c_tilde.shape[0]+1))
+        c_tilde = c_tilde[::-1]
+        iso_reg = IsotonicRegression().fit(indices, c_tilde)
+        x = iso_reg.predict(indices)
         x = np.concatenate((-x[::-1], x))
         x[x < lb] = lb
         x[x > ub] = ub
@@ -61,8 +70,7 @@ class Optimizer:
 
     def lamda_update(self, lb, ub, beta, U, Lw, k):
         q = Lw.shape[1] - k
-        opt = np.matmul(np.matmul(U.T, Lw), U)
-        d = np.diag(opt)
+        d = np.diag(U.T @ Lw @ U)
         # unconstrained solution as initial point
         lamda = 0.5 * (d + np.sqrt(d**2 + 4 / beta))
         eps = 1e-9

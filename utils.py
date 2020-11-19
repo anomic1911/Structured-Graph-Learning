@@ -19,9 +19,18 @@ class Operators:
         Lw[row,col] = -Lw.sum(axis=1)
         return Lw
 
-    # def vecLmat(n):
-    #     ncols = 0.5*n*(n-1)
-    #     nrows = n*n
+    def vecLmat(self, n):
+        ncols = int(0.5*n*(n-1))
+        nrows = int(n*n)
+        R = np.zeros((nrows, ncols))
+        e = np.zeros(ncols)
+        e[0] = 1
+        R[:, 0] = self.L(e).flatten()
+        for j in range(1,ncols):
+            e[j-1] = 0
+            e[j] = 1
+            R[:, j] = self.L(e).flatten()
+        return R
 
     def Linv(self, M):
         '''Computes the inverse of the L operator
